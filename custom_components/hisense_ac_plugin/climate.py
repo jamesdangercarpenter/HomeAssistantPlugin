@@ -606,6 +606,11 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 mode_str = HA_MODE_TO_STR.get(hvac_mode)
                 if mode_str:
                     hisense_mode = mode_str
+            properties = {StatusKey.MODE: hisense_mode}
+            # Unit resets setpoint on mode change; resend current one
+            target_temp = self._device.get_status_value(StatusKey.TARGET_TEMP)
+            if target_temp and hvac_mode in (HVACMode.COOL, HVACMode.HEAT):
+                properties[StatusKey.TARGET_TEMP] = str(target_temp)
             if hvac_mode != HVACMode.OFF:
                 power = self._device.get_status_value(StatusKey.POWER)
                 if power == "0":
@@ -613,7 +618,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                         puid=self._device_id,
                         properties={
                             StatusKey.POWER: "1",  # 开机
-                            StatusKey.MODE: hisense_mode  # 同步设置模式
+                            **properties,  # 同步设置模式
                         }
                     )
                     return
@@ -621,7 +626,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 _LOGGER.debug("Setting HVAC mode to %s (Hisense value: %s)", hvac_mode, hisense_mode)
                 await self.coordinator.async_control_device(
                     puid=self._device_id,
-                    properties={StatusKey.MODE: hisense_mode},
+                    properties=properties,
                 )
             else:
                 _LOGGER.error("Could not find Hisense mode value for HA mode: %s", hvac_mode)
